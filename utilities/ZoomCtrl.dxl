@@ -1,0 +1,198 @@
+//  VDS - Zoom Control Dialog
+
+/*
+    	Description:
+    
+    Zoom Control Dialog.
+    
+    Provides a simple mechanism for the user to change the displayed
+    font sizes for Object Heading and Text.
+    
+    Font sizes for all object levels are uniformly increased or decreased
+    within the minimum and maximum values that are supported by DOORS.
+    
+    An option is provided to allow the user to reset the displayed
+    font sizes to the database default values.
+    
+    Tony Goodman
+*/
+
+
+/******************************************************************************
+	Constants for Font Family
+******************************************************************************/
+const string FONT_NAMES[] = { "Times", "Courier", "Helvetica", "Schoolbook" }
+
+const int FONT_TIMES      = 0
+const int FONT_COURIER    = 1
+const int FONT_HELVETICA  = 2
+const int FONT_SCHOOLBOOK = 3
+
+
+/******************************************************************************
+	Constants for Font Sizes
+******************************************************************************/
+const string FONT_SIZES[] = { "8pt", "9pt", "10pt", "11pt", "12pt", "14pt" }
+
+const int FONT_8PT   = 0
+const int FONT_9PT   = 1
+const int FONT_10PT  = 2
+const int FONT_11PT  = 3
+const int FONT_12PT  = 4
+const int FONT_14PT  = 5
+
+
+
+DB  dbMain     = null
+DBE dbeZoomIn  = null
+DBE dbeZoomOut = null
+DBE dbeReset   = null
+
+
+/******************************************************************************
+	vdsZoom
+	
+	Increase or decrease the displayed font sizes for Heading and Text for
+	all levels of object.
+******************************************************************************/
+void vdsZoom(bool zoomIn)
+{
+	const int NUM_LEVELS = 10
+	
+	int  i        = 0
+	int  usedIn   = 0
+	int  iSize    = 0
+	int  iFamily  = 0
+	bool isBold   = false
+	bool isItalic = false
+	
+	
+	// Object Text Displayed Font Sizes
+	for (i = 1; i < NUM_LEVELS; i++)
+	{
+		// get current settings for object text
+		getFontSettings(i, TextFont, iSize, iFamily, isBold, isItalic)
+		
+		if (zoomIn && iSize < FONT_14PT)
+		{
+			// increase the font size
+			iSize++
+		}
+		else if (!zoomIn && iSize > FONT_8PT)
+		{
+			// decrease the font size
+			iSize--
+		}
+
+		// set new settings for object text
+		setFontSettings(i, TextFont, iSize, iFamily, isBold, isItalic)
+	}
+	
+	// Object Heading Displayed Font Sizes
+	for (i = 1; i < NUM_LEVELS; i++)
+	{
+		// get current settings for object heading
+		getFontSettings(i, HeadingsFont, iSize, iFamily, isBold, isItalic)
+		
+		if (zoomIn && iSize < FONT_14PT)
+		{
+			// increase the font size
+			iSize++
+		}
+		else if (!zoomIn && iSize > FONT_8PT)
+		{
+			// decrease the font size
+			iSize--
+		}
+
+		// set new settings for object heading
+		setFontSettings(i, HeadingsFont, iSize, iFamily, isBold, isItalic)
+	}
+}
+
+
+/******************************************************************************
+	doRefresh
+	
+	Refresh the module editor display if there is a current module.
+******************************************************************************/
+void doRefresh()
+{
+	Module m = current Module
+	if (!null m)
+	{
+		refresh(m)
+	}
+}
+
+
+/******************************************************************************
+	doZoomIn
+	
+	Callback from Zoom In button. Increases the displayed font sizes.
+******************************************************************************/
+void doZoomIn(DBE dbe)
+{
+	vdsZoom(true)
+	doRefresh()
+}
+
+
+/******************************************************************************
+	doZoomOut
+	
+	Callback from Zoom Out button. Decreases the displayed font sizes.
+******************************************************************************/
+void doZoomOut(DBE dbe)
+{
+	vdsZoom(false)
+	doRefresh()
+}
+
+
+/******************************************************************************
+	doCloseAction
+	
+	Action on closing the dialog.
+******************************************************************************/
+void doCloseAction(DB db)
+{
+	hide dbMain
+	destroy dbMain
+	dbMain = null
+}
+
+
+/******************************************************************************
+	doReset
+	
+	Callback from Reset button. 
+	Sets the displayed font sizes to the database default.
+******************************************************************************/
+void doReset(DBE dbe)
+{
+	resetFonts(0)
+	doRefresh
+}
+
+
+/******************************************************************************
+	MAIN
+******************************************************************************/
+dbMain = create("Zoom Control")
+
+label(dbMain, "Change the displayed font sizes.")
+
+dbeZoomIn  = button(dbMain, "Zoom In", doZoomIn, styleStandardSize)
+
+beside dbMain
+
+dbeZoomOut = button(dbMain, "Zoom Out", doZoomOut, styleStandardSize)
+
+dbeReset   = button(dbMain, "Reset", doReset, styleStandardSize)
+
+close(dbMain, false, doCloseAction)
+
+realize dbMain
+
+show dbMain
