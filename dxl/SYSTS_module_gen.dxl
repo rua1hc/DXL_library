@@ -1,0 +1,538 @@
+/*
+---------------------------------------------------------------
+User: rua1hc
+Version: 1.0
+Date: 2015
+---------------------------------------------------------------
+*/
+pragma runLim, 0
+
+/*
+CHANGE YOUR INPUT HERE
+ + usrinput:
+	- Folder: "/Nissan P32x/TestArea/Test1"
+	- or Module: "/Nissan P32x/TestArea/Test1/CP_SWMRS_SMU_SYC_Nissan_MRR"
+ + TestHistory: add more if needed
+ + TestRelease: add more if needed
+*/
+string usrinput = "/Nissan P32x/Customer Requirements/CAN_Message_List/CANGen3_for_FCA_FCW_Cluster3_P42K"
+string TestHistory[] = {"P42K", "X81C"}
+string TestRelease[] = {"R2.0", "R3.0"}
+
+/* custom regexp for removing AttrDef */
+Regexp rmvAd = regexp2 "(Safety Integrity)|(Attribute.*)|(Vehicle.*)|(Comment.*)|(Timing.*)|(Domain.*)|(^Status.*)"
+
+/* attrDXLName history */
+string TestStatusHistory = "string history = \"\"
+for (x = 9; x > 0; x--) {
+	for (y = 9; y >= 0; y--) {
+		string TestResultRxy = \"Test Result Status variantR\" x \".\" y \"\"
+		if (exists attribute TestResultRxy)
+		{
+			string objtype = obj.\"Object Type\"
+			if (objtype == \"Test Case\")
+			{
+				string TestResultRxyVal = obj.TestResultRxy
+				history = history \"variantR\" x \".\" y \": \" TestResultRxyVal \"\\n\"
+			}
+		}
+	}
+}
+obj.attrDXLName = history"
+
+/*	linkMod:
+	- specify the link module to be used when a link is created between a pair of modules
+	- the linkset of this source/target module pairing should be used unique for one folder or project
+	- "TestLinkModule" is created by default
+*/
+string linkMod
+string DOORS_LINKS = "TestLinkModule"
+int existsCount = 0
+int newCount = 0
+int folderCount = 0
+int errors = 0
+/***********************************
+	createLinksModule
+************************************/
+void createLinksModule(Folder f)
+{
+	Item i
+	folderCount++
+	if (module(fullName(f) "/" DOORS_LINKS))
+	{
+		if (!isDeleted(module(fullName(f) "/" DOORS_LINKS)))
+		{
+			existsCount++
+			//print("Already exists (undeleted): " fullName(f) "/" DOORS_LINKS "\n")
+			//softDelete(module(fullName(f) "/DOORS Links"))
+		}
+		else
+		{
+			//print "already deleted\n"
+		}
+	}
+	else
+	{
+		(current FolderRef__) = f
+
+		noError
+		Module m = create(DOORS_LINKS, "Do not undelete or purge", manyToMany, false)
+		res = lastError
+		if (res "" != "")
+		{
+			errors++
+			print("Error trying to create " fullName(f) "/" DOORS_LINKS ": " res "\n")
+		}
+
+		if (!null m)
+		{
+			close(m)
+			//softDelete(module(fullName(f) "/" DOORS_LINKS))
+			newCount++
+		}
+		else
+		{
+			errors++
+			print("Failed to create: " fullName(f) "/" DOORS_LINKS "\n")
+		}
+	}
+
+	//for i in f do
+	//{
+	//	if (type(i) == "Folder" || type(i) == "Project")
+	//	{
+	//		createLinksModule(folder(fullName(i)))
+	//	}
+	//}
+}
+//print(folderCount " folders checked\n")
+//print(newCount " modules created and soft-deleted\n")
+//print(existsCount " modules found (undeleted)\n")
+//print(errors " errors (unable to create module)\n")
+
+
+/************************************
+	translate
+	This function replaces "variant" by "TestHistory[]"
+************************************/
+string translate(string sSource, string sSearch, string sTranslate)
+{
+    int iLen = length sSource
+    if (iLen == 0) return ""
+    int iLenSearch = length(sSearch)
+	
+    if (iLenSearch == 0) { 
+        //raiseError ("Parameter error", "in strings.inc/replace: search string must not be empty")
+        return "" 
+    }
+	
+    // read the first char for latter comparison -> speed optimization
+    char firstChar = sSearch[0]
+    Buffer s = create()
+    int pos = 0;
+    int i, d1, d2;
+	
+    while (pos < iLen) {
+        char ch = sSource[pos];
+        bool found = true
+        
+        if (ch != firstChar) {pos ++; s+= ch; continue}
+        for (i = 1; i < iLenSearch; i++) {
+           if (sSource[pos+i] != sSearch[i]) { found = false; break }
+        }
+		
+        if (!found) {pos++; s+= ch; continue}
+        s += sTranslate
+        pos += iLenSearch
+    }
+    
+    string result = stringOf s
+    delete s
+    return result
+}
+
+
+/************************************
+	processFormal
+	This function prints out the result
+************************************/
+void processFormal(string mName)
+{
+	print("[S] " mName " ...completed.\n")
+}
+
+
+/************************************
+	modifyAndAdd, modifyAndAddTC
+	These functions adds new value to the end of the list of possible enumeration values leaving the remaining value intact
+************************************/
+AttrType modifyAndAdd(AttrType atTypeToEdit, string sTypeName, string arrValues[], int arrOrdinals[], int arrColours[], string& sErrMsg)
+{
+	int arrMaps[atTypeToEdit.size + 1]
+	int i
+	for (i = 0; i < atTypeToEdit.size + 1; i++) {
+		arrMaps[i] = i;
+	}
+	return modify(atTypeToEdit, sTypeName, arrValues, arrOrdinals, arrColours, arrMaps, sErrMsg)
+}
+
+AttrType modifyAndAddTC(Module mod)
+{
+	AttrType at = find(mod, "Object Type")
+	string new_strings[at.size+1]
+	int new_values[at.size+1]
+	int new_colors[at.size+1]
+	int i = 0
+	for(i = 0; i < at.size; i++)
+	{
+		new_strings[i] = at.strings[i]
+		new_values[i] = at.values[i]
+		new_colors[i] = at.colors[i]
+	}
+	string errmsg = ""
+	new_strings[at.size] = "Test Case"
+	new_values[at.size] = at.size
+	new_colors[at.size] = realColor_Green
+	string at_name = at.name
+	return modifyAndAdd(at, at_name, new_strings, new_values, new_colors, errmsg)
+}
+
+
+/************************************
+	createAttrType
+	This function creates new AttrType enumeration
+************************************/
+void createAttrType(Module mod)
+{
+	AttrType at = find(mod, "Test_Status")
+	if (null at)
+	{
+		string errmsg = ""
+		string at_names[] = {"not tested", "passed", "failed", "-"}
+		int at_values[] = {0, 1, 2, 3}
+		int at_colors[] = {realColor_Black, realColor_Green, realColor_Red, realColor_Purple}
+		create("Test_Status", at_names, at_values, at_colors, errmsg)
+		if (!null errmsg) ack errmsg
+	}
+	//else
+	//{
+	//	string baseType = at.type ""
+	//	if (baseType == "Enumeration")
+	//	{
+	//		/* modify current enum, check for other baseType */
+	//		baseType = "Real" || "Integer" || "Date" || "String" || "Text"
+	//	}
+	//}
+}
+
+
+/************************************
+	deleteAttrDef
+	This function removes unnecessary AttrDef
+************************************/
+void deleteAttrDef(Module mod)
+{
+	AttrDef ad
+	for ad in mod do
+	{
+		string errmsg = ""
+		string adname = ad.name
+		if (rmvAd adname)
+		{
+			errmsg = delete(ad)
+//			if (errmsg != "") ack errmsg
+		}
+		else
+		{
+			/* DELETE MORE ATTRs HERE */
+		}
+	}
+}
+
+
+/************************************
+	getnewPrefix
+	This function returns new module prefix
+************************************/
+string getnewPrefix(string mPrefix)
+{
+	string sTemp = "RR"
+	int mPrefixLen = length(mPrefix)
+	if (mPrefixLen >= 2)
+	{
+		sTemp = mPrefix[mPrefixLen-2:mPrefixLen-1]
+	}
+	
+	string sRet
+	if (sTemp == "R_")
+	{
+		if (mPrefixLen == 2)
+		{
+			sRet = "T_"
+		}
+		else
+		{
+			sRet = mPrefix[0:mPrefixLen-3] "T_"
+		}
+	}
+	else if (sTemp == "_R")
+	{
+		if (mPrefixLen == 2)
+		{
+			sRet = "_T"
+		}
+		else
+		{
+			sRet = mPrefix[0:mPrefixLen-3] "_T"
+		}
+	}
+	else
+	{
+		sRet = mPrefix
+	}
+	return sRet
+}
+
+
+/************************************
+	clearView
+	This function clear the current view
+************************************/
+void clearView(Module mod)
+{
+	Column col
+    int col_cnt = 0
+    col = column(mod, 0)
+    if (!null col)
+	{
+		for col in mod do
+		{
+			col_cnt++
+		}
+    }
+	
+	int i
+    for (i = 0; i < col_cnt; i++)
+	{
+        delete(column(0))
+    }
+    filtering(off)
+    sorting(off)
+    outlining(off)
+    level(0)
+}
+
+
+/************************************
+	makeView
+	This function create new View name based on Variant
+************************************/
+void makeView(Module mod)
+{
+	int m, n
+	string att_col
+	string modName = name(mod)
+	for (m = 0; m < sizeof TestHistory; m++) {
+		clearView(mod)
+		Column col
+		int i = 0
+		att_col = "Test Result Status History " TestHistory[m]
+		col = insert column i++; attribute(col, "Object Identifier"); width (col, 120); title (col, "ID")
+		col = insert column i++; main col; width (col, 500)
+		col = insert column i++; attribute(col, "Object Type"); width (col, 100); color (col, "Object Type")
+		col = insert column i++; attribute(col, att_col); width (col, 160)
+		col = insert column i++; attribute(col, "Test Method"); width (col, 120)
+		col = insert column i++; attribute(col, "Test Platform"); width (col, 100)
+		col = insert column i++; attribute(col, "Test Steps"); width (col, 100)
+		col = insert column i++; attribute(col, "Expected Results"); width (col, 100)
+		
+		for (n = 0; n < sizeof TestRelease; n++) {
+			att_col = "Test Result Status " TestHistory[m] TestRelease[n]
+			col = insert column i++; attribute(col, att_col); width (col, 160)
+			att_col = "Obtained Test Results " TestHistory[m] TestRelease[n]
+			col = insert column i++; attribute(col, att_col); width (col, 160)
+		}
+		
+		/* set the view options, save the view under a name and make it the default view */
+		//autoIndent true
+		string viewName = TestHistory[m]
+		noError()
+		save(view(viewName), createPublic(mod, true))
+		string errmsg = lastError()
+		if (!null errmsg)
+		{
+			infoBox("\n'" modName "': Error saving view '" viewName "'\n" errmsg)
+		}
+		setDefaultViewForModule(mod, viewName)
+	}
+}
+
+
+/************************************
+	AutoGenTestSpec
+	This function scans all items in the GIVEN FOLDER, RECURSING THROUGH SUB-FOLDERS AND PROJECTS.
+	1. make a clone of module, new name ends with "_Test_Specification"
+	2. change "Object Type" from "Requirement" to "Test Case"
+	3. create new attr "Test Result Status", set status to "-"
+	4. link testcase back to original requirement
+************************************/
+void AutoGenTestSpec(Folder fld, Item itm)
+{
+	if (matches("_Test_Specification", name(itm)))
+	{
+		//print("[W] " name(itm) " : this is TS module - ignored.\n")
+		return
+	}
+	
+	ModName_ MyModuleSrc = module(fullName(itm))
+	string MyModuleDesName = name(itm) "_Test_Specification"
+	string MyModuleDesfullName = fullName(itm) "_Test_Specification"
+	
+	ModName_ MyModuleDes = module(MyModuleDesfullName)
+	if (exists(MyModuleDes))
+	{
+		print("[W] " name(itm) " : this already had TS module - ignored.\n")
+		return
+	}
+	
+	if (!copy(MyModuleSrc, MyModuleDesName, "SW Test Specification"))
+	{
+		print("[E] " name(itm) " : cannot be cloned. Please try another input.\n")
+		return
+	}
+	
+	Module MyModuleRS = read(fullName(itm), true)
+	if (applyingFiltering(MyModuleRS)) unApplyFiltering(MyModuleRS)
+	Module MyModuleTS = edit(MyModuleDesfullName, true)
+	if (applyingFiltering(MyModuleTS)) unApplyFiltering(MyModuleTS)
+	/* SET CURRENT MODULE TO TS */
+	(current ModuleRef__) = MyModuleTS
+	addLinkModuleDescriptor(fld, MyModuleDesfullName, fullName(itm), false, true, linkMod, "rua1hc")
+	
+	/* DELETE UNNECESSARY ATTRs */
+	deleteAttrDef(MyModuleTS)
+	/* ADD "Test Case" TO "Object Type" ENUM */
+	setRealColorOptionForTypes(true)
+	AttrType at_new = modifyAndAddTC(MyModuleTS)
+	/* CREATE NEW ATTR TYPE "Test_Status" */
+	createAttrType(MyModuleTS)
+	
+	/* CREATE NEW ATTRs */
+	int i, j
+	for (i = 0; i < sizeof TestHistory; i++) {
+		for (j = 0; j < sizeof TestRelease; j++) {
+			string TestResult = "Test Result Status " TestHistory[i] TestRelease[j]
+			string TestObtained = "Obtained Test Results " TestHistory[i] TestRelease[j]
+			create object type "Test_Status" (default "-") multi false attribute TestResult
+			create object type "Text" attribute TestObtained
+		}
+		string TestResultHistory = "Test Result Status History " TestHistory[i]
+		string mydxl = translate(TestStatusHistory, "variant", TestHistory[i])
+		create object type "Text" attribute TestResultHistory dxl mydxl
+	}
+	string new_Attrs[] = {	"Comment/CQ",
+							"Test Steps",
+							"Test Method",
+							"Test Platform",
+							"Review Findings",
+							"Expected Results"}
+	for (i = 0; i < sizeof new_Attrs; i++) {
+		string new_Attr = new_Attrs[i]
+		if (!exists attribute new_Attr) create object type "Text" attribute new_Attr
+	}
+	//if (!exists attribute "Comment/CQ") create object type "Text" attribute "Comment/CQ"
+	//if (!exists attribute "Test Steps") create object type "Text" attribute "Test Steps"
+	//if (!exists attribute "Test Method") create object type "Text" attribute "Test Method"
+	
+	Object MyModuleTS_obj
+	for MyModuleTS_obj in all MyModuleTS do
+	{
+		if (table(MyModuleTS_obj) || row(MyModuleTS_obj) || cell(MyModuleTS_obj)) {continue }
+		
+		Link mylink
+		for mylink in MyModuleTS_obj -> "*" do {
+			delete(mylink)
+		}
+		flushDeletions()
+		
+		string MyModuleTS_objType = MyModuleTS_obj."Object Type"
+		if (MyModuleTS_objType == "Requirement")
+		{
+			MyModuleTS_obj."Object Type" = "Test Case"
+			//MyModuleTS_obj."Test Result Status" = "-"
+			int MyModuleTS_objAbsNumber = MyModuleTS_obj."Absolute Number"
+			Object MyModuleRS_obj = object(MyModuleTS_objAbsNumber, MyModuleRS)
+			MyModuleTS_obj -> linkMod -> MyModuleRS_obj
+		}
+		else
+		{
+			/* LET "Heading", "Description" INTACT */
+		}
+	}
+	
+	/* change Prefix and make View */
+	string curPrefix = MyModuleTS."Prefix"
+	string newPrefix = getnewPrefix(curPrefix)
+	MyModuleTS."Prefix" = newPrefix
+	makeView(MyModuleTS)
+	
+	/* SAVE, CLOSE - REFRESH TS IF NEEDED */
+	save(MyModuleTS)
+	close(MyModuleRS, false)
+	//refresh(MyModuleTS)
+	close(MyModuleTS, true)
+	processFormal(name(itm))
+}
+
+
+/************************************
+	MAIN
+************************************/
+if (usrinput == "")
+{
+	print("[E]NULL input parameter passed\n")
+}
+else if (type(item(usrinput)) == "Folder")
+{
+	linkMod = usrinput "/" DOORS_LINKS
+	Folder MyFolder = folder(usrinput)
+	createLinksModule(MyFolder)
+	
+	/* loop through items at top level of folder */
+	Item myitm
+	for myitm in MyFolder do
+	{
+		/* sensible checks to avoid run-time errors */
+		if (isDeleted(myitm) || null myitm) {continue }
+		
+		if (type (myitm) == "Formal")
+		{
+			AutoGenTestSpec(MyFolder, myitm)
+		}
+		//else if ((type (myitm) == "Folder") || (type (myitm) == "Project"))
+		//{
+		//	//DO-LATER
+		//	AutoGenTestSpec(folder(myitm), sub_myitm)
+		//}
+	}
+	refreshDBExplorer()
+}
+else if (type(item(usrinput)) == "Formal")
+{
+	string inputModule = stripPath(usrinput, false)
+	string inputFolder = translate(usrinput, inputModule, "")
+	
+	linkMod = inputFolder DOORS_LINKS
+	Folder MyFolder = folder(inputFolder)
+	createLinksModule(MyFolder)
+	
+	Item myitm = item(usrinput)
+	AutoGenTestSpec(MyFolder, myitm)
+	refreshDBExplorer()
+}
+else
+{
+	//UNKNOWN TYPE INPUT
+}
+
+

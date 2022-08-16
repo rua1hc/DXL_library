@@ -1,0 +1,240 @@
+print "Start...\n"
+string RequirementFileNameStr = "CP_SWRS_SMU_HONDA_MY17"
+const int ObjTestAbsIDColunm = 0
+const int ObjTestTextColunm = 1
+const int ObjTestMethodColunm = 2
+const int ObjTestResulColunm = 3
+const int ObjTestCommentColunm = 4
+const int ObjObtainColumn = 5
+const int ObjTestIDReqColunm = 6
+string strResultReleaseCheckpoint0 = "Test Result Status R710"
+string ObtainedTestResults0  = "Obtained Test Results R710"
+int NumberTestCase = 29
+//Array of Objects with its
+Array ArrObjectInfor = create(NumberTestCase,40)
+// row: mapped with testcase ID
+//Colunm:
+//	0: Contains of Absolute number
+//	1: Contains of Object Text
+//	2: Contains of Test Method
+//	3: Contains of Test Result
+//	4: Contains of Test Comment
+//	5 --> others: contains of Requirement Id mapped with current testcase
+
+
+//Testcase number: Honda_MY17_SWTS_SMU_2447
+	put(ArrObjectInfor, 2447 ,21,ObjTestAbsIDColunm)
+	put(ArrObjectInfor, "Verify that The function SCO_X_BlinkingCtrl_B does the below things:
+--> The status of Blinking mode 2 is required as below:
+Time On = 1 sec; Time Off = 0.5 sec.
+In case:
+--> the input warning indicator lamp is new blinking" ,21,ObjTestTextColunm)
+	put(ArrObjectInfor, "Requirement based" ,21,ObjTestMethodColunm)
+	put(ArrObjectInfor, "passed" ,21,ObjTestResulColunm)
+	put(ArrObjectInfor, "" ,21,ObjTestCommentColunm)
+	put(ArrObjectInfor, "https://inside-ilm.bosch.com/irj/go/nui/sid/f0e988f0-1042-3610-f0b8-c6da0e4ea4e1" ,21,ObjObtainColumn)
+	put(ArrObjectInfor, 1239 ,21,ObjTestIDReqColunm + 0)
+
+
+//Testcase number: Honda_MY17_SWTS_SMU_2452
+	put(ArrObjectInfor, 2452 ,26,ObjTestAbsIDColunm)
+	put(ArrObjectInfor, "Verify that sco_x_IsSFSReactionIRREVERSIBLE_B()
+--> return TRUE
+In case:
+--> any one reaction is Irreversible  for given fault class" ,26,ObjTestTextColunm)
+	put(ArrObjectInfor, "Requirement based" ,26,ObjTestMethodColunm)
+	put(ArrObjectInfor, "passed" ,26,ObjTestResulColunm)
+	put(ArrObjectInfor, "" ,26,ObjTestCommentColunm)
+	put(ArrObjectInfor, "https://inside-ilm.bosch.com/irj/go/nui/sid/f0e988f0-1042-3610-f0b8-c6da0e4ea4e1" ,26,ObjObtainColumn)
+	put(ArrObjectInfor, 457 ,26,ObjTestIDReqColunm + 0)
+
+
+//Testcase number: Honda_MY17_SWTS_SMU_2453
+	put(ArrObjectInfor, 2453 ,27,ObjTestAbsIDColunm)
+	put(ArrObjectInfor, "Verify that sco_x_IsSFSReactionIRREVERSIBLE_B()
+--> return FALSE
+In case:
+--> the  reactions are  not Irreversible  for given fault class" ,27,ObjTestTextColunm)
+	put(ArrObjectInfor, "Requirement based
+Boundary values
+Equivalence class" ,27,ObjTestMethodColunm)
+	put(ArrObjectInfor, "passed" ,27,ObjTestResulColunm)
+	put(ArrObjectInfor, "" ,27,ObjTestCommentColunm)
+	put(ArrObjectInfor, "https://inside-ilm.bosch.com/irj/go/nui/sid/f0e988f0-1042-3610-f0b8-c6da0e4ea4e1" ,27,ObjObtainColumn)
+	put(ArrObjectInfor, 457 ,27,ObjTestIDReqColunm + 0)
+
+
+//Testcase number: Honda_MY17_SWTS_SMU_2454
+	put(ArrObjectInfor, 2454 ,28,ObjTestAbsIDColunm)
+	put(ArrObjectInfor, "Verify that sco_x_IsCoordinationActive_B()
+--> returns the active status of specific reaction" ,28,ObjTestTextColunm)
+	put(ArrObjectInfor, "Requirement based
+Boundary values
+Equivalence class" ,28,ObjTestMethodColunm)
+	put(ArrObjectInfor, "passed" ,28,ObjTestResulColunm)
+	put(ArrObjectInfor, "" ,28,ObjTestCommentColunm)
+	put(ArrObjectInfor, "https://inside-ilm.bosch.com/irj/go/nui/sid/f0e988f0-1042-3610-f0b8-c6da0e4ea4e1" ,28,ObjObtainColumn)
+	put(ArrObjectInfor, 1209 ,28,ObjTestIDReqColunm + 0)
+
+//Get Requirement module Name
+Module ModSWMTS = current
+Module ModSWMRS
+string strTS = name ModSWMTS
+string strRS1 = ""
+string strRS2 = ""
+string reqName
+int lenz = 0
+int loop
+while (strTS[lenz] != null)
+{
+lenz = lenz + 1
+}
+for (loop =0; loop<lenz;loop++)
+{
+	string strtemp = ""
+	strtemp = strTS[loop] strtemp
+	if ((strTS[loop]=='S')and(strTS[loop+1]=='W')and(strTS[loop+2]=='M')and(strTS[loop+3]=='T'))
+	{
+		strRS1 = strRS1 "SWMR"
+		strRS2 = strRS2 "SWCR"
+		loop =loop +3
+	}
+	else if((strTS[loop]=='S')and(strTS[loop+1]=='W')and(strTS[loop+2]=='C')and(strTS[loop+3]=='T'))
+	{
+		strRS1 = strRS1 "SWMR"
+		strRS2 = strRS2 "SWCR"
+		loop =loop +3
+	}else
+	{
+		strRS1 = strRS1 strtemp
+		strRS2 = strRS2 strtemp
+	}
+
+}
+//print strRS1 "\n"
+//print strRS2 "\n"
+//print strTS "\n"
+
+//Get Requirement Module
+Module ModTemp
+string StrTemp
+bool CheckReqOpen = false
+bool CheckReqIsBaseline = true
+for ModTemp in current Project do
+{
+	StrTemp = name ModTemp
+	if (StrTemp == RequirementFileNameStr)
+	{
+		ModSWMRS = ModTemp
+		CheckReqOpen = true
+		print "You are importing DOORS for User requirement: " StrTemp "\n"
+		reqName = StrTemp
+	}
+	else if ( StrTemp == strRS1)
+	{
+		ModSWMRS = ModTemp
+		CheckReqOpen = true
+		print "You are importing DOORS for Module level (SWMRS) \n"
+		reqName = "SWMRS"
+	}
+	else if ( StrTemp == strRS2)
+	{
+		ModSWMRS = ModTemp
+		CheckReqOpen = true
+		print "You are importing DOORS for Component level (SWCRS) \n"
+		reqName = "SWCRS"
+	}
+}
+if(CheckReqOpen == false)
+{
+	print "SMWRS door is not opened, Kindly open it and RUN again\n"
+}
+else
+{
+	//Check SWMRS is opened or not
+	CheckReqIsBaseline = baseline(ModSWMRS)
+	if(CheckReqIsBaseline == true)
+	{
+		print reqName " baseline version is opened. Kindly close baseline, then open current " reqName "link\n"
+		print "Error. Exit.\n"
+	}
+	else
+	{
+		//print name ModSWMRS "\n"
+
+		if (!(open module ModSWMRS)) print "Module does not open\n"
+
+		//Check Object is valid or not. If valid --> Just update, if not --> create new
+		int temp1
+		Object currOject
+		Object ObjTemp
+		bool CheckOValid
+		int CurrTestCaseAbsID
+		// First Object is always has, so when loop ==0 --> not create new
+		for (loop = 0; loop<NumberTestCase; loop++)
+		{
+			CurrTestCaseAbsID = (int get(ArrObjectInfor,loop,ObjTestAbsIDColunm))
+			CheckOValid = false
+			for ObjTemp in current Module do
+			{
+				temp1 = ObjTemp."Absolute Number"
+				if (temp1==CurrTestCaseAbsID) CheckOValid = true
+			}
+			if(CheckOValid == true)
+			{
+				currOject = object(CurrTestCaseAbsID)
+
+				// Added lines to update requirement with absolutely same as testcase
+				Link l
+				for l in currOject -> "*" do
+				{
+					delete(l)
+					flushDeletions()
+				}
+
+			}
+			else
+			{
+				CurrTestCaseAbsID = (int get(ArrObjectInfor,loop-1,ObjTestAbsIDColunm))
+				currOject = create after object(CurrTestCaseAbsID)
+			}
+
+			//update all attribute to Current Object
+			currOject."Object Type" = "Test Case"
+			currOject."Object Heading" = " "
+			currOject."Object Text" = (string get(ArrObjectInfor,loop,ObjTestTextColunm))
+			currOject."Test Platform" = "RTRT"
+			currOject."Test Method" = (string get(ArrObjectInfor,loop,ObjTestMethodColunm))
+
+			currOject.strResultReleaseCheckpoint0 = (string get(ArrObjectInfor,loop,ObjTestResulColunm))
+			currOject.ObtainedTestResults0 = (string get(ArrObjectInfor,loop,ObjObtainColumn))
+
+			currOject."Comment" = (string get(ArrObjectInfor,loop,ObjTestCommentColunm))
+			//link current object to its requirement
+			int loop1 = ObjTestIDReqColunm // start at location stores requirement
+			int ReqIDCurr = 0
+			Object ObjTemp1
+			bool CheckOReqValid
+			while (get(ArrObjectInfor,loop,loop1)!= null)
+			{
+				ReqIDCurr = (int get(ArrObjectInfor,loop,loop1))
+				CheckOReqValid = false
+				for ObjTemp1 in all ModSWMRS do
+				{	temp1 = ObjTemp1."Absolute Number"
+					if (temp1 == ReqIDCurr) CheckOReqValid = true
+				}
+				if (CheckOReqValid == true)
+				{
+					ObjTemp = object(ReqIDCurr,ModSWMRS)
+					currOject -> ObjTemp //if link already has, this link is obmited
+				}
+				else
+				{
+					print "Requirement " ReqIDCurr " is invalid\n"
+				}
+				loop1++;
+			}
+		}
+	}
+}
+print "Finish\n"

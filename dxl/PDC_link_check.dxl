@@ -1,0 +1,384 @@
+/*
+---------------------------------------------------------------
+Review-before-PDC - DOORS_link_check.dxl
+Author		:	rua1hc
+Date		:	2015
+Revision	:	2.0
+-----SWMRS-----
+- Report no. of "Implemented" / total no. of requirements
+- Requirement is "Implemented" but has no in-link testcase(s)
+- Requirement is "Implemented", has in-link testcase(s) but no test result
+- Requirement is not "Implemented" but has test result "passed/failed"
+-----SWMTS-----
+- Report no. of "passed/failed" / total no. of testcases
+- Testcase is "passed/failed" but not link to "Implemented" requirement
+-----SWCRS-----
+- same as SWMRS
+---------------------------------------------------------------
+*/
+
+print "Start...\n"
+pragma runLim, 0
+///////////////////////////////////////////////////
+//Input from user
+////mandatory
+string ReqSttAttr = "Status_C2_CAN_Gen5"	//Status_YAA_MY16//Status_4P45_ACC
+string TestResultStatusRelease = "Test Result Status C2R7.0"
+int ModuleReqAbsnumber = 8866	//Input Absolute number ID of SWMRS heading
+int ModuleTestAbsnumber = 883	//Input Absolute number ID of SWMTS heading
+////optional
+int CompReqAbsnumber = 0		//Input Absolute number ID of SWCRS heading, default value: 0 (no check)
+string CompReqFileNameStr = "CP_SWCRS_NET_Nissan_MRR"	//e.g for Nissan: "CP_SWCRS_NET_Nissan_MRR"
+////optional
+bool g_DEBUG_b = false
+///////////////////////////////////////////////////
+
+string fnTranslate(string sSource, string sSearch, string sTranslate)
+{
+    int iLen = length sSource
+    if (iLen == 0) return ""
+    
+    int iLenSearch = length(sSearch)
+    
+    if (iLenSearch == 0) { 
+        //raiseError ("Parameter error", "in strings.inc/replace: search string must not be empty")
+        return "" 
+    }
+    
+    // read the first char for latter comparison -> speed optimization -> suu nhi :)
+    char firstChar = sSearch[0]
+    
+    Buffer s = create() 
+    int pos = 0, d1,d2;    
+    int i
+    
+    while (pos < iLen) { 
+        char ch = sSource[pos]; 
+        bool found = true
+        
+        if (ch != firstChar) {pos ++; s+= ch; continue}
+        for (i = 1; i < iLenSearch; i++) {
+           if (sSource[pos+i] != sSearch[i]) { found = false; break }
+        }
+        if (!found) {pos++; s+= ch; continue}
+        s += sTranslate
+        pos += iLenSearch
+    }
+    
+    string result = stringOf s
+    delete s
+    return result
+}
+
+//Get Requirement Module name
+Module ModSWMTS = current
+string NameSWMTS = name ModSWMTS
+Module ModSWMRS
+string NameSWMRS = fnTranslate(NameSWMTS, "SWMTS", "SWMRS")
+Module ModSWCRS
+string NameSWCRS = fnTranslate(NameSWMTS, "SWMTS", "SWCRS")
+
+Module ModTemp
+string NameTemp
+bool SWMRSOpen_b = false
+bool SWCRSOpen_b = false
+for ModTemp in current Project do
+{
+	NameTemp = name ModTemp
+	if(NameTemp == NameSWMRS)
+	{
+		ModSWMRS = ModTemp
+		SWMRSOpen_b = true
+	}
+	if(NameTemp == NameSWCRS)
+	{
+		ModSWCRS = ModTemp
+		SWCRSOpen_b = true
+	}
+	else if(NameTemp == CompReqFileNameStr)
+	{
+		ModSWCRS = ModTemp
+		SWCRSOpen_b = true
+	}
+	else
+	{
+	}
+}
+
+if(SWMRSOpen_b == false)
+{
+	print "SMWRS is not opened, kindly open it and RUN again\n"
+}
+else
+{
+	//Check SWMTS
+	int NumberOfSWMTS = 0
+	int NumberOfSWMTSpassed = 0
+	int NumberOfSWMTSfailed = 0
+	int ArrObjSWMTSAbsNumber[1000]
+	Link link
+	string TS_ObjCurrentCmt = ""
+	Skip OutlinkTCReqAbsNumber = create
+	Object RS_ObjCurrent
+	Object OutlinkTestcaseObj
+	Object SWMTS_ObjParent = object(ModuleTestAbsnumber, ModSWMTS)
+	int t_lv = level(SWMTS_ObjParent)
+	RS_ObjCurrent = next(SWMTS_ObjParent)
+	while(level(RS_ObjCurrent) > t_lv)
+	{
+		string RS_ObjCurrentType = RS_ObjCurrent."Object Type"
+		string RS_ObjCurrentStt = RS_ObjCurrent.TestResultStatusRelease
+		if(RS_ObjCurrentType == "Test Case")
+		{
+			ArrObjSWMTSAbsNumber[NumberOfSWMTS] = RS_ObjCurrent."Absolute Number"
+			if(RS_ObjCurrentStt == "passed")
+			{
+				NumberOfSWMTSpassed++
+			}
+			else if(RS_ObjCurrentStt == "failed")
+			{
+				NumberOfSWMTSfailed++
+				string RS_ObjCurrentComment = RS_ObjCurrent."Comment"
+				if((RS_ObjCurrentComment == "")||(RS_ObjCurrentComment == null))
+				{
+					TS_ObjCurrentCmt = TS_ObjCurrentCmt "SWMTS ID " RS_ObjCurrent."Absolute Number" " failed but has no comment\n"
+				}
+			}
+			NumberOfSWMTS++
+			for link in RS_ObjCurrent -> "*" do
+			{
+				OutlinkTestcaseObj = target link
+				if (g_DEBUG_b == true) print identifier(RS_ObjCurrent) "\n"
+				string OutlinkTCObjStt = OutlinkTestcaseObj.ReqSttAttr
+				string OutlinkTCObjType = OutlinkTestcaseObj."Object Type"
+				if((OutlinkTCObjType == "Requirement") && (OutlinkTCObjStt != "Implemented"))
+				{
+					if((RS_ObjCurrentStt == "passed")||(RS_ObjCurrentStt == "failed"))
+					{
+						int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
+						if(find(OutlinkTCReqAbsNumber, OutlinkTCObjAbsNumber) == false)
+						{
+							put(OutlinkTCReqAbsNumber, OutlinkTCObjAbsNumber, RS_ObjCurrentStt)
+						}
+					}
+				}
+			}
+		}
+		RS_ObjCurrent = next(RS_ObjCurrent)
+		if(null RS_ObjCurrent) break
+	}
+	print "SWMTS heading:  " SWMTS_ObjParent."Object Heading" "\n"
+	print "- Total number of testcases: " NumberOfSWMTS "\n"
+	print " -> passed: " NumberOfSWMTSpassed "\n"
+	print " -> failed: " NumberOfSWMTSfailed "\n"
+	if(TS_ObjCurrentCmt != "") print TS_ObjCurrentCmt
+	string TS_ObjCurrentStt
+	for TS_ObjCurrentStt in OutlinkTCReqAbsNumber do
+	{
+		int t_id = (int key OutlinkTCReqAbsNumber)
+		print "Requirement ID " t_id " is not \"Implemented\" but has test result " TS_ObjCurrentStt "\n"
+	}
+	print "\n"
+	
+	
+	//Check SWMRS
+	string SWMRSlinkname
+	SWMRSlinkname = getDefaultLinkModule(module(NameSWMTS), module(NameSWMRS))
+	Object SWMRS_ObjParent = object(ModuleReqAbsnumber, ModSWMRS)
+	RS_ObjCurrent = next(SWMRS_ObjParent)
+	int loop
+	int loop1 = 0, loop2 = 0
+	bool flag_all = true
+	bool flag_na = false
+	int NumberOfSWMRS = 0
+	int NumberOfSWMRSimplemented = 0
+	int ArrObjSWMRSAbsNumber[1000]
+	int ArrObjSWMRSAbsNumber1[500]
+	t_lv = level(SWMRS_ObjParent)
+	while(level(RS_ObjCurrent) > t_lv)
+	{
+		string RS_ObjCurrentType = RS_ObjCurrent."Object Type"
+		string RS_ObjCurrentStt = RS_ObjCurrent.ReqSttAttr
+		if(RS_ObjCurrentType == "Requirement")
+		{
+			NumberOfSWMRS++
+			if(RS_ObjCurrentStt == "Implemented")
+			{
+				bool flag_RS = false
+				NumberOfSWMRSimplemented++
+				//for link in RS_ObjCurrent <- SWMRSlinkname do
+				for link in RS_ObjCurrent <- "*" do
+				{
+					bool flag = false
+					string ModName = source link
+					if(ModName == NameSWMTS){
+						OutlinkTestcaseObj = source link
+						int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
+						string OutlinkTCObjStt = OutlinkTestcaseObj.TestResultStatusRelease
+						if((OutlinkTCObjStt == "passed")||(OutlinkTCObjStt == "failed"))
+						{
+							for(loop = 0; loop < NumberOfSWMTS; loop++)
+							{
+								if(OutlinkTCObjAbsNumber == ArrObjSWMTSAbsNumber[loop])
+								{
+									flag = true
+									break
+								}
+							}
+						}
+						if(flag == true)
+						{
+							flag_RS = true
+							break
+						}
+					}
+				}
+				if(flag_RS == false)
+				{
+					flag_all = false
+					ArrObjSWMRSAbsNumber[loop2++] = RS_ObjCurrent."Absolute Number"
+				}
+			}
+			else if(RS_ObjCurrentStt == "-")
+			{
+				flag_na = true
+				ArrObjSWMRSAbsNumber1[loop1++] = RS_ObjCurrent."Absolute Number"
+			}
+		}
+		RS_ObjCurrent = next(RS_ObjCurrent)
+		if(null RS_ObjCurrent) break
+	}
+	print "SWMRS heading:  " SWMRS_ObjParent."Object Heading" "\n"
+	print "- Total number of requirements: " NumberOfSWMRS "\n"
+	print " -> Implemented: " NumberOfSWMRSimplemented "\n"
+	if(flag_all == false)
+	{
+		for(loop = 0; loop < loop2; loop++)
+		{
+			print "SWMRS ID " ArrObjSWMRSAbsNumber[loop] " has no in-link testcase\n"
+		}
+	}
+	else
+	{
+		print "All requirements have their own testcases. Congratulate...\n"
+	}
+	if(flag_na == true)
+	{
+		for(loop = 0; loop < loop1; loop++)
+		{
+			print "SWMRS ID " ArrObjSWMRSAbsNumber1[loop] " has default status \"-\"\n"
+		}
+	}
+	print "\n"
+	
+	
+	//RS_ObjCurrent
+	//for link in RS_ObjCurrent -> "*" do 
+	//{
+	//	Module ModTemp = module(link)
+	//	string linkname = name ModTemp
+	//	string ModName = target(link) //ModSWMRS-ModSWCRS
+	//}
+	
+	//Check SWCRS
+	if(CompReqAbsnumber > 0)
+	{
+		if(SWCRSOpen_b == false)
+		{
+			print "SMCRS is not opened, kindly open it and RUN again\n"
+		}
+		else
+		{
+			Object SWCRS_ObjParent = object(CompReqAbsnumber, ModSWCRS)
+			RS_ObjCurrent = next(SWCRS_ObjParent)
+			loop1 = 0
+			loop2 = 0
+			flag_all = true
+			flag_na = false
+			int NumberOfSWCRS = 0
+			int NumberOfSWCRSimplemented = 0
+			int ArrObjSWCRSAbsNumber[1000]
+			int ArrObjSWCRSAbsNumber1[500]
+			t_lv = level(SWCRS_ObjParent)
+			while(level(RS_ObjCurrent) > t_lv)
+			{
+				string RS_ObjCurrentType = RS_ObjCurrent."Object Type"
+				string RS_ObjCurrentStt = RS_ObjCurrent.ReqSttAttr
+				if(RS_ObjCurrentType == "Requirement")
+				{	
+					NumberOfSWCRS++
+					if(RS_ObjCurrentStt == "Implemented")
+					{
+						bool flag_RS = false
+						NumberOfSWCRSimplemented++
+						for link in RS_ObjCurrent <- "*" do
+						{
+							flag = false
+							string ModName = source link
+							if(ModName == NameSWMTS)
+							{
+								OutlinkTestcaseObj = source link
+								int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
+								string OutlinkTCObjStt = OutlinkTestcaseObj.TestResultStatusRelease
+								if((OutlinkTCObjStt == "passed")||(OutlinkTCObjStt == "failed"))
+								{
+									for(loop = 0; loop < NumberOfSWMTS; loop++)
+									{
+										if(OutlinkTCObjAbsNumber == ArrObjSWMTSAbsNumber[loop])
+										{
+											flag = true
+											break
+										}
+									}
+								}
+								if(flag == true)
+								{
+									flag_RS = true
+									break
+								}
+							}
+						}
+						if(flag_RS == false)
+						{
+							flag_all = false
+							ArrObjSWCRSAbsNumber[loop2++] = RS_ObjCurrent."Absolute Number"
+						}
+					}
+					else if(RS_ObjCurrentStt == "-")
+					{
+						flag_na = true
+						ArrObjSWCRSAbsNumber1[loop1++] = RS_ObjCurrent."Absolute Number"
+					}
+				}
+				RS_ObjCurrent = next(RS_ObjCurrent)
+				if(null RS_ObjCurrent) break
+				//if(RS_ObjCurrent == next(sibling(SWCRS_ObjParent))) break
+			}
+			print "SWCRS heading:  " SWCRS_ObjParent."Object Heading" "\n"
+			print "- Total number of requirements: " NumberOfSWCRS "\n"
+			print " -> Implemented: " NumberOfSWCRSimplemented "\n"
+			if(flag_all == false)
+			{
+				for(loop = 0; loop < loop2; loop++)
+				{
+					print "SWCRS ID " ArrObjSWCRSAbsNumber[loop] " has no in-link testcase\n"
+				}
+			}
+			else
+			{
+				print "All requirements have their own testcases. Congratulate...\n"
+			}
+			if(flag_na == true)
+			{
+				for(loop = 0; loop < loop1; loop++)
+				{
+					print "SWCRS ID " ArrObjSWCRSAbsNumber1[loop] " has default status \"-\"\n"
+				}
+			}
+			//print "\n"
+		}
+	}
+}
+
+
+
