@@ -3,7 +3,7 @@
 Review-before-PDC - DOORS_link_check.dxl
 Author		:	rua1hc
 Date		:	2015
-Revision	:	2.0
+Revision	:	2.1
 -----SWMRS-----
 - Report no. of "Implemented" / total no. of requirements
 - Requirement is "Implemented" but has no in-link testcase(s)
@@ -14,24 +14,33 @@ Revision	:	2.0
 - Testcase is "passed/failed" but not link to "Implemented" requirement
 -----SWCRS-----
 - same as SWMRS
+
+////////////////////////////////////////////////////////////////
+Revision : 1.0, 2016 - rua1hc
+- Get user input from box
+- Report all default "-" status requirement(s)
+- Check ILM delivery link in Obtained Test Results column
+- Check comment for failed testcase in Obtained Test Results column
 ---------------------------------------------------------------
 */
 
-print "Start...\n"
 pragma runLim, 0
-///////////////////////////////////////////////////
-//Input from user
-////mandatory
-string ReqSttAttr = "Status_C2_CAN_Gen5"	//Status_YAA_MY16//Status_4P45_ACC
-string TestResultStatusRelease = "Test Result Status C2R7.0"
-int ModuleReqAbsnumber = 8866	//Input Absolute number ID of SWMRS heading
-int ModuleTestAbsnumber = 883	//Input Absolute number ID of SWMTS heading
-////optional
-int CompReqAbsnumber = 0		//Input Absolute number ID of SWCRS heading, default value: 0 (no check)
-string CompReqFileNameStr = "CP_SWCRS_NET_Nissan_MRR"	//e.g for Nissan: "CP_SWCRS_NET_Nissan_MRR"
-////optional
+
 bool g_DEBUG_b = false
-///////////////////////////////////////////////////
+
+Regexp IDnumber_regex = regexp2 "[0-9]+"
+Regexp Req_Attr_regex = regexp2 "^Status.*"
+Regexp Test_Attr_regex = regexp2 "^Test Result Status.*"
+
+DB inputDB = null
+DBE SWMRS_Attr = null
+DBE SWMTS_Attr = null
+DBE SWMRS_ID = null
+DBE SWMTS_ID = null
+
+DBE SWCRS_tg = null
+DBE SWCRS_Fn = null
+DBE SWCRS_ID = null
 
 string fnTranslate(string sSource, string sSearch, string sTranslate)
 {
@@ -74,14 +83,13 @@ string fnTranslate(string sSource, string sSearch, string sTranslate)
 Module ModSWMTS = current
 string NameSWMTS = name ModSWMTS
 Module ModSWMRS
-string NameSWMRS = fnTranslate(NameSWMTS, "SWMTS", "SWMRS")
+string NameSWMRS = fnTranslate(NameSWMTS, "SWTS", "SWRS")
 Module ModSWCRS
-string NameSWCRS = fnTranslate(NameSWMTS, "SWMTS", "SWCRS")
+//string NameSWCRS = fnTranslate(NameSWMTS, "SWMTS", "SWCRS")
 
 Module ModTemp
 string NameTemp
 bool SWMRSOpen_b = false
-bool SWCRSOpen_b = false
 for ModTemp in current Project do
 {
 	NameTemp = name ModTemp
@@ -90,27 +98,64 @@ for ModTemp in current Project do
 		ModSWMRS = ModTemp
 		SWMRSOpen_b = true
 	}
-	if(NameTemp == NameSWCRS)
-	{
-		ModSWCRS = ModTemp
-		SWCRSOpen_b = true
-	}
-	else if(NameTemp == CompReqFileNameStr)
-	{
-		ModSWCRS = ModTemp
-		SWCRSOpen_b = true
-	}
-	else
-	{
-	}
 }
 
-if(SWMRSOpen_b == false)
+void doCloseAction(DB db)
 {
-	print "SMWRS is not opened, kindly open it and RUN again\n"
+	hide inputDB
+	destroy inputDB
+	inputDB = null
 }
-else
+
+void doCancelAction(DBE dbe)
 {
+	hide inputDB
+	destroy inputDB
+	inputDB = null
+}
+
+void do_OK_Action(DBE dbe)
+{
+	string ReqSttAttr = get(SWMRS_Attr)
+	string TestSttRelease = get(SWMTS_Attr)
+	//string TestSttRelease = "Test Result Status ES8 R7.0_I1"
+	string MRS_HeadingID_Str = get(SWMRS_ID)
+	string MTS_HeadingID_Str = get(SWMTS_ID)
+	bool SWCRS_b = get(SWCRS_tg)
+	string CRS_HeadingID_Str = get(SWCRS_ID)
+	string CRS_ModuleName_Str = get(SWCRS_Fn)
+	
+	print "----- Starting - "
+	print dateOf intOf today
+	bool ILM_Comment_exist_b = true
+	int MRS_HeadingAbsID, MTS_HeadingAbsID, CRS_HeadingAbsID
+	string ObtainedTestSttRelease = fnTranslate(TestSttRelease, "Test Result Status", "Obtained Test Results")
+	if (!exists attribute ObtainedTestSttRelease) {
+		ILM_Comment_exist_b = false
+	}
+	
+	if ( IDnumber_regex MRS_HeadingID_Str ) {
+		//if ( isValidInt(MRS_HeadingID_Str[match 0]) )
+		MRS_HeadingAbsID = intOf(MRS_HeadingID_Str[match 0])
+	}
+	else {
+		errorBox("Wrong SWMRS ID format")
+	}
+	if ( IDnumber_regex MTS_HeadingID_Str ) {
+		MTS_HeadingAbsID = intOf(MTS_HeadingID_Str[match 0])
+	}
+	else {
+		errorBox("Wrong SWMTS ID format")
+	}
+	if ( SWCRS_b ) {
+		if ( IDnumber_regex CRS_HeadingID_Str ) {
+			CRS_HeadingAbsID = intOf(CRS_HeadingID_Str[match 0])
+		}
+		else {
+			errorBox("Wrong SWCRS ID format")
+		}
+	}
+	
 	//Check SWMTS
 	int NumberOfSWMTS = 0
 	int NumberOfSWMTSpassed = 0
@@ -121,13 +166,13 @@ else
 	Skip OutlinkTCReqAbsNumber = create
 	Object RS_ObjCurrent
 	Object OutlinkTestcaseObj
-	Object SWMTS_ObjParent = object(ModuleTestAbsnumber, ModSWMTS)
+	Object SWMTS_ObjParent = object(MTS_HeadingAbsID, ModSWMTS)
 	int t_lv = level(SWMTS_ObjParent)
 	RS_ObjCurrent = next(SWMTS_ObjParent)
 	while(level(RS_ObjCurrent) > t_lv)
 	{
 		string RS_ObjCurrentType = RS_ObjCurrent."Object Type"
-		string RS_ObjCurrentStt = RS_ObjCurrent.TestResultStatusRelease
+		string RS_ObjCurrentStt = RS_ObjCurrent.TestSttRelease
 		if(RS_ObjCurrentType == "Test Case")
 		{
 			ArrObjSWMTSAbsNumber[NumberOfSWMTS] = RS_ObjCurrent."Absolute Number"
@@ -138,17 +183,19 @@ else
 			else if(RS_ObjCurrentStt == "failed")
 			{
 				NumberOfSWMTSfailed++
-				string RS_ObjCurrentComment = RS_ObjCurrent."Comment"
-				if((RS_ObjCurrentComment == "")||(RS_ObjCurrentComment == null))
-				{
-					TS_ObjCurrentCmt = TS_ObjCurrentCmt "SWMTS ID " RS_ObjCurrent."Absolute Number" " failed but has no comment\n"
+				if ( ILM_Comment_exist_b ) {
+					string RS_ObjCurrentComment = RS_ObjCurrent.ObtainedTestSttRelease
+					if((RS_ObjCurrentComment == "")||(RS_ObjCurrentComment == null))
+					{
+						TS_ObjCurrentCmt = TS_ObjCurrentCmt "SWMTS ID " RS_ObjCurrent."Absolute Number" " failed but has no comment\n"
+					}
 				}
 			}
 			NumberOfSWMTS++
 			for link in RS_ObjCurrent -> "*" do
 			{
 				OutlinkTestcaseObj = target link
-				if (g_DEBUG_b == true) print identifier(RS_ObjCurrent) "\n"
+				if (g_DEBUG_b == true) print "-debug_TS_ID-" identifier(RS_ObjCurrent) "\n"
 				string OutlinkTCObjStt = OutlinkTestcaseObj.ReqSttAttr
 				string OutlinkTCObjType = OutlinkTestcaseObj."Object Type"
 				if((OutlinkTCObjType == "Requirement") && (OutlinkTCObjStt != "Implemented"))
@@ -156,9 +203,10 @@ else
 					if((RS_ObjCurrentStt == "passed")||(RS_ObjCurrentStt == "failed"))
 					{
 						int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
+						string OutlinkTCObjAbsNumberStr = identifier(OutlinkTestcaseObj)
 						if(find(OutlinkTCReqAbsNumber, OutlinkTCObjAbsNumber) == false)
 						{
-							put(OutlinkTCReqAbsNumber, OutlinkTCObjAbsNumber, RS_ObjCurrentStt)
+							put(OutlinkTCReqAbsNumber, OutlinkTCObjAbsNumberStr, RS_ObjCurrentStt)
 						}
 					}
 				}
@@ -167,24 +215,28 @@ else
 		RS_ObjCurrent = next(RS_ObjCurrent)
 		if(null RS_ObjCurrent) break
 	}
-	print "SWMTS heading:  " SWMTS_ObjParent."Object Heading" "\n"
+	print "\n===== SWMTS heading:  " SWMTS_ObjParent."Object Heading" " =====\n"
 	print "- Total number of testcases: " NumberOfSWMTS "\n"
 	print " -> passed: " NumberOfSWMTSpassed "\n"
 	print " -> failed: " NumberOfSWMTSfailed "\n"
 	if(TS_ObjCurrentCmt != "") print TS_ObjCurrentCmt
+	if(!ILM_Comment_exist_b) {
+		print "PLEASE TAKE CARE ILM delivery link and Comment for failed testcase(s)\n"
+	}
 	string TS_ObjCurrentStt
 	for TS_ObjCurrentStt in OutlinkTCReqAbsNumber do
 	{
-		int t_id = (int key OutlinkTCReqAbsNumber)
-		print "Requirement ID " t_id " is not \"Implemented\" but has test result " TS_ObjCurrentStt "\n"
+		//int t_id = (int key OutlinkTCReqAbsNumber)
+		string t_id = key OutlinkTCReqAbsNumber
+		print t_id " is not \"Implemented\" but has test result \"" TS_ObjCurrentStt "\"\n"
 	}
-	print "\n"
+	delete OutlinkTCReqAbsNumber
 	
 	
 	//Check SWMRS
 	string SWMRSlinkname
 	SWMRSlinkname = getDefaultLinkModule(module(NameSWMTS), module(NameSWMRS))
-	Object SWMRS_ObjParent = object(ModuleReqAbsnumber, ModSWMRS)
+	Object SWMRS_ObjParent = object(MRS_HeadingAbsID, ModSWMRS)
 	RS_ObjCurrent = next(SWMRS_ObjParent)
 	int loop
 	int loop1 = 0, loop2 = 0
@@ -214,7 +266,7 @@ else
 					if(ModName == NameSWMTS){
 						OutlinkTestcaseObj = source link
 						int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
-						string OutlinkTCObjStt = OutlinkTestcaseObj.TestResultStatusRelease
+						string OutlinkTCObjStt = OutlinkTestcaseObj.TestSttRelease
 						if((OutlinkTCObjStt == "passed")||(OutlinkTCObjStt == "failed"))
 						{
 							for(loop = 0; loop < NumberOfSWMTS; loop++)
@@ -248,7 +300,7 @@ else
 		RS_ObjCurrent = next(RS_ObjCurrent)
 		if(null RS_ObjCurrent) break
 	}
-	print "SWMRS heading:  " SWMRS_ObjParent."Object Heading" "\n"
+	print "\n===== SWMRS heading:  " SWMRS_ObjParent."Object Heading" " =====\n"
 	print "- Total number of requirements: " NumberOfSWMRS "\n"
 	print " -> Implemented: " NumberOfSWMRSimplemented "\n"
 	if(flag_all == false)
@@ -269,27 +321,35 @@ else
 			print "SWMRS ID " ArrObjSWMRSAbsNumber1[loop] " has default status \"-\"\n"
 		}
 	}
-	print "\n"
 	
 	
 	//RS_ObjCurrent
-	//for link in RS_ObjCurrent -> "*" do 
-	//{
+	//for link in RS_ObjCurrent -> "*" do {
 	//	Module ModTemp = module(link)
 	//	string linkname = name ModTemp
 	//	string ModName = target(link) //ModSWMRS-ModSWCRS
 	//}
 	
 	//Check SWCRS
-	if(CompReqAbsnumber > 0)
+	if( SWCRS_b )
 	{
+		bool SWCRSOpen_b = false
+		for ModTemp in current Project do
+		{
+			NameTemp = name ModTemp
+			if(NameTemp == CRS_ModuleName_Str)
+			{
+				ModSWCRS = ModTemp
+				SWCRSOpen_b = true
+			}
+		}
 		if(SWCRSOpen_b == false)
 		{
 			print "SMCRS is not opened, kindly open it and RUN again\n"
 		}
 		else
 		{
-			Object SWCRS_ObjParent = object(CompReqAbsnumber, ModSWCRS)
+			Object SWCRS_ObjParent = object(CRS_HeadingAbsID, ModSWCRS)
 			RS_ObjCurrent = next(SWCRS_ObjParent)
 			loop1 = 0
 			loop2 = 0
@@ -319,7 +379,7 @@ else
 							{
 								OutlinkTestcaseObj = source link
 								int OutlinkTCObjAbsNumber = OutlinkTestcaseObj."Absolute Number"
-								string OutlinkTCObjStt = OutlinkTestcaseObj.TestResultStatusRelease
+								string OutlinkTCObjStt = OutlinkTestcaseObj.TestSttRelease
 								if((OutlinkTCObjStt == "passed")||(OutlinkTCObjStt == "failed"))
 								{
 									for(loop = 0; loop < NumberOfSWMTS; loop++)
@@ -354,7 +414,7 @@ else
 				if(null RS_ObjCurrent) break
 				//if(RS_ObjCurrent == next(sibling(SWCRS_ObjParent))) break
 			}
-			print "SWCRS heading:  " SWCRS_ObjParent."Object Heading" "\n"
+			print "\n===== SWCRS heading:  " SWCRS_ObjParent."Object Heading" " =====\n"
 			print "- Total number of requirements: " NumberOfSWCRS "\n"
 			print " -> Implemented: " NumberOfSWCRSimplemented "\n"
 			if(flag_all == false)
@@ -375,10 +435,86 @@ else
 					print "SWCRS ID " ArrObjSWCRSAbsNumber1[loop] " has default status \"-\"\n"
 				}
 			}
-			//print "\n"
 		}
 	}
+	print "\n----- End - "
+	print dateAndTime(today)
+	print "--------------------------------------------------\n\n"
 }
 
 
+if(SWMRSOpen_b == false)
+{
+	print "SMWRS is not opened, kindly open it and RUN again\n"
+}
+else
+{
+	AttrDef ad
+	int Attr_cnt = 0
+	string dummy[] = {}
+	inputDB = create("Review-Before-PDC", styleCentered|styleFixed|styleFloating)
+	
+	DBE dbeFrame_1 = frame(inputDB, (NLS_("- beta 1.1-")))
+	dbeFrame_1->(NLS_("top"))->(NLS_("form"))
+	dbeFrame_1->(NLS_("left"))->(NLS_("form"))
+	//dbeFrame_1->(NLS_("bottom"))->(NLS_("form"))
+	dbeFrame_1->(NLS_("right"))->(NLS_("form"))
+	
+	SWMRS_Attr = choice(inputDB, "SWMRS Status ", dummy, 0, 30, false)
+	SWMRS_Attr->(NLS_("top"))->(NLS_("inside"))->dbeFrame_1
+	//SWMRS_Attr->(NLS_("left"))->(NLS_("inside"))->dbeFrame_1
+	//SWMRS_Attr->(NLS_("bottom"))->(NLS_("unattached"))
+	//SWMRS_Attr->(NLS_("right"))->(NLS_("unattached"))
+	
+	SWMRS_ID = field(inputDB, "SWMRS heading ID ", "R_Nissan_MRR_SWM_VDI_R_123", 30, false)
+	SWMTS_Attr = choice(inputDB, "SWMTS Status ", dummy, 0, 30, false)
+	SWMTS_ID = field(inputDB, "SWMTS heading ID ", "R_Nissan_MRR_SWM_VDI_T_123", 30, false)
+	SWMTS_ID->(NLS_("bottom"))->(NLS_("inside"))->dbeFrame_1
+	SWMTS_ID->(NLS_("right"))->(NLS_("inside"))->dbeFrame_1
+	
+	DBE dbeFrame_2 = frame(inputDB, (NLS_("SWCRS")))
+	dbeFrame_2->(NLS_("top"))->(NLS_("flush"))->dbeFrame_1
+	dbeFrame_2->(NLS_("left"))->(NLS_("form"))
+	//dbeFrame_2->(NLS_("bottom"))->(NLS_("form"))
+	dbeFrame_2->(NLS_("right"))->(NLS_("form"))
+	
+	SWCRS_tg = toggle(inputDB, " Check SWCRS", true)
+	SWCRS_tg->(NLS_("top"))->(NLS_("inside"))->dbeFrame_2
+	SWCRS_tg->(NLS_("left"))->(NLS_("inside"))->dbeFrame_2
+	
+	SWCRS_Fn = field(inputDB, "SWCRS Name ", "CP_SWCRS_NET_Nissan_MRR", 30, false)
+	SWCRS_ID = field(inputDB, "SWCRS heading ID ", "R_Nissan_MRR_SWC_NET_R_123", 30, false)
+	SWCRS_ID->(NLS_("bottom"))->(NLS_("inside"))->dbeFrame_2
+	SWCRS_ID->(NLS_("right"))->(NLS_("inside"))->dbeFrame_2
+	
+	right inputDB
+	DBE ok_btn = button(inputDB, "OK", do_OK_Action, styleStandardSize)
+	ok_btn->(NLS_("top"))->(NLS_("flush"))->dbeFrame_2
+	//opposite inputDB
+	DBE cc_btn = button(inputDB, "Cancel", doCancelAction, styleIsCloseBtn|styleStandardSize)
+	
+	close(inputDB, false, doCloseAction)
+	
+	realize(inputDB)
+	
+	for ad in ModSWMRS do
+	{
+		string adname = ad.name
+		if (Req_Attr_regex adname){
+			insert(SWMRS_Attr, Attr_cnt, adname)
+			Attr_cnt++
+		}
+	}
+	Attr_cnt = 0
+	for ad in ModSWMTS do
+	{
+		string adname = ad.name
+		if (Test_Attr_regex adname){
+			insert(SWMTS_Attr, Attr_cnt, adname)
+			Attr_cnt++
+		}
+	}
+	
+	show(inputDB)
+}
 
